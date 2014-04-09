@@ -101,8 +101,8 @@ void calculate_satelite_orbital_v(double central_mass, double x, double y, doubl
         *v_y = v; *v_x = 0;
         return;
     }
-    *v_x =   v * y / r;
-    *v_y = - v * x / r;
+    *v_x =    v   * y / r;
+    *v_y = - *v_x * x / y;
 }
 
 void initialize(int * no_particles, int * no_mass_particles, double ** masses,
