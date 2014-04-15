@@ -15,32 +15,30 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+/*---------------------------------------------------------------------------*/
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
-
-
+/*---------------------------------------------------------------------------*/
+/* Solving the equations occuring by implicit GAUSS-LEGENDRE integration */
+#include <gsl/gsl_multiroots.h>
+gsl_multiroot_fsolver *multiRootSolver;
+/*---------------------------------------------------------------------------*/
 /* All masses in 10^6 kg */
 /* All distances in 10^6 m */
 #define GRAVITATIONAL_CONSTANT_ORIGIN ((double)6.0e2)
 #define GRAVITATIONAL_CONSTANT ((double)(GRAVITATIONAL_CONSTANT_ORIGIN))
-
+/*---------------------------------------------------------------------------*/
 int      number_particles;
 int      number_mass_particles;
-
 double   * masses;
-
 double dt;
-
 double dt_min, dt_max;
-
 /* Should never exceeded */
 double v_max;
-
 /* previous states */
 double * p_x_prev;
 double * p_y_prev;
-
 /* temporarily store new v */
 double * p_x_temp;
 double * p_y_temp;
@@ -49,13 +47,14 @@ double * p_x_current;
 double * p_y_current;
 double * v_x_current;
 double * v_y_current;
-
 /* acceleration */
 double * a_x;
 double * a_y;
-
+/*---------------------------------------------------------------------------*/
 void (* next)(void);
-
+/*---------------------------------------------------------------------------
+ * Helpers 
+ *---------------------------------------------------------------------------*/
 void print_array(char * name, int n, double * array) 
 {
     fprintf(stderr, "%s ", name);
@@ -66,26 +65,44 @@ void print_array(char * name, int n, double * array)
     }
     fprintf(stderr, "\n");
 }
-
+/*---------------------------------------------------------------------------*/
 void exchange(double **a, double **b) 
 {
     double *temp = *a;
     *a = *b;
     *b = temp;
 }
-
+/*---------------------------------------------------------------------------*/
 double dabs(double a)
 {
     if(a < 0.0) return -a;
     return a;
 }
-
+/*---------------------------------------------------------------------------*/
+void recalculate_v() 
+{
+    int i;
+    double dt_invers = 1.0 / dt;
+    for( i = 0; i < number_particles; i++)
+    {
+        v_x_current[i]  = p_x_current[i] - p_x_prev[i];
+        v_y_current[i]  = p_y_current[i] - p_y_prev[i];
+        v_x_current[i] *= dt_invers;
+        v_y_current[i] *= dt_invers;
+    }
+}
+/*---------------------------------------------------------------------------
+ * Function typedefs
+ *---------------------------------------------------------------------------*/
 typedef void(* InitFunction)(int * no_particles, int * no_mass_particles, double ** masses,
         double ** p_x, double ** p_y, double ** v_x, double ** v_y) ;
 typedef void(* OutputFunction)(int no_particles, int no_mass_particles, double * masses,
         double time_current, double * p_x, double * p_y, double *a_x, double *a_y) ;
-
-
+/*---------------------------------------------------------------------------*/
+/**
+ * Initialize an velocity vector thus that the particle will circle the central
+ * body at (0,0) in a circle
+ */
 void calculate_satelite_orbital_v(double central_mass, double x, double y, double *v_x, double *v_y) 
 {
     double r_2 = x * x + y * y;
@@ -104,7 +121,11 @@ void calculate_satelite_orbital_v(double central_mass, double x, double y, doubl
     *v_x =    v   * y / r;
     *v_y = - *v_x * x / y;
 }
-
+/*---------------------------------------------------------------------------*/
+/**
+ * Custom init method that takes care to initialize the number of masses, 
+ * the location and velocity vectors of these masses etc.
+ */
 void initialize(int * no_particles, int * no_mass_particles, double ** masses,
         double ** p_x, double ** p_y, double ** v_x, double ** v_y) 
 {
@@ -125,10 +146,10 @@ void initialize(int * no_particles, int * no_mass_particles, double ** masses,
         (*masses)[n] = 100.0;
 
     }
-    *p_x = (double *)malloc(n_p * sizeof(double));
-    *p_y = (double *)malloc(n_p * sizeof(double));
-    *v_x = (double *)malloc(n_p * sizeof(double));
-    *v_y = (double *)malloc(n_p * sizeof(double));
+    *p_x = (double *)malloc(4 * n_p * sizeof(double));
+    *p_y = *p_x + n_p;
+    *v_x = *p_y + n_p;
+    *v_y = *v_x + n_p;
     (*p_x)[1] = 0;
     (*p_y)[1] = 300000.0;
     (*v_x)[1] = 1000;
@@ -160,18 +181,36 @@ void initialize(int * no_particles, int * no_mass_particles, double ** masses,
 #undef V_X_0
 #undef V_Y_0
 }
-
+/*---------------------------------------------------------------------------*/
+/** 
+ * Custom output function that will print out the current time as well as,
+ * successively for each particle, its location and acceleration vector
+ */
+void output_stdout(int n_p, int n_m_p, double * masses, double now, 
+        double * p_x, double *p_y, double *a_x, double *a_y) 
+{
+    printf("%f ", now);
+    int i;
+    for(i = 0; i < n_p; i++)
+    {
+        printf("%f %f %f %f ", p_x[i], p_y[i], a_x[i], a_y[i]);
+    }
+    printf("\n");
+}
+/*---------------------------------------------------------------------------
+ * General initialization methods
+ *---------------------------------------------------------------------------*/
 void alloc_helper_arrays() 
 {
 
-    p_x_prev = (double *)malloc(number_particles * sizeof(double));
-    p_y_prev = (double *)malloc(number_particles * sizeof(double));
-    p_x_temp = (double *)malloc(number_particles * sizeof(double));
-    p_y_temp = (double *)malloc(number_particles * sizeof(double));
-    a_x      = (double *)malloc(number_particles * sizeof(double));
-    a_y      = (double *)malloc(number_particles * sizeof(double));
+    p_x_prev = (double *)malloc(2 * number_particles * sizeof(double));
+    p_y_prev = p_x_prev + number_particles;
+    p_x_temp = (double *)malloc(2 * number_particles * sizeof(double));
+    p_y_temp = p_x_temp + number_particles;
+    a_x      = (double *)malloc(2 * number_particles * sizeof(double));
+    a_y      = a_x + number_particles;
 }
-
+/*---------------------------------------------------------------------------*/
 void initialize_adaptive_solver()
 {
     int i;
@@ -195,7 +234,7 @@ void initialize_adaptive_solver()
     }
     fprintf(stderr, "v_max : %f  dt_min: %.10f  dt_max: %.10f\n", v_max, dt_min, dt_max);
 }
-
+/*---------------------------------------------------------------------------*/
 void finish_initialization() 
 {
     exchange(&p_x_prev, &p_x_current);
@@ -209,7 +248,35 @@ void finish_initialization()
          p_y_current[n] = p_y_prev[n] + dt * v_y_current[n]; 
     }
 }
-
+/*---------------------------------------------------------------------------*/
+void initialize_solver() 
+{
+    initialize_adaptive_solver();
+    multiRootSolver = gsl_multiroot_fsolver_alloc(gsl_multiroot_fsolver_hybrid, 3 * number_particles);
+    alloc_helper_arrays();
+    finish_initialization();
+}
+/*---------------------------------------------------------------------------
+ * Clean up functions 
+ *---------------------------------------------------------------------------*/
+void free_arrays()
+{
+   free(p_x_current); 
+   free(p_x_prev); 
+   free(p_x_temp); 
+   free(a_x);
+   free(masses);
+}
+/*---------------------------------------------------------------------------*/
+void clean_up()
+{
+    gsl_multiroot_fsolver_free(multiRootSolver);
+    free_arrays();
+}
+/*---------------------------------------------------------------------------*/
+/**
+ * Function to recalculate the acceleration of all particles 
+ */
 void recalculate_acceleration() 
 {
     int n;
@@ -230,7 +297,9 @@ void recalculate_acceleration()
         }
     }
 }
-
+/*---------------------------------------------------------------------------
+ * Static stepper
+ *---------------------------------------------------------------------------*/
 void static_next() 
 {
     recalculate_acceleration();
@@ -249,20 +318,9 @@ void static_next()
     exchange(&p_x_temp, &p_x_current);
     exchange(&p_y_temp, &p_y_current);
 }
-
-void recalculate_v() 
-{
-    int i;
-    double dt_invers = 1.0 / dt;
-    for( i = 0; i < number_particles; i++)
-    {
-        v_x_current[i]  = p_x_current[i] - p_x_prev[i];
-        v_y_current[i]  = p_y_current[i] - p_y_prev[i];
-        v_x_current[i] *= dt_invers;
-        v_y_current[i] *= dt_invers;
-    }
-}
-
+/*---------------------------------------------------------------------------
+ * Adaptive stepper
+ *---------------------------------------------------------------------------*/
 void adapt_dt() 
 {
     int    n          = 0;
@@ -286,7 +344,7 @@ void adapt_dt()
     if(dt_temp > dt_max) dt_max  = dt_max;
     dt = dt_temp;
 }
-
+/*---------------------------------------------------------------------------*/
 void adaptive_next() 
 {
     recalculate_acceleration();
@@ -306,31 +364,16 @@ void adaptive_next()
     exchange(&p_y_temp, &p_y_current);
     /* recalculate_v();*/
 }
-
-void free_arrays()
-{
-   free(p_x_current); 
-   free(p_y_current); 
-   free(p_x_prev); 
-   free(p_y_prev); 
-   free(p_x_temp); 
-   free(p_y_temp); 
-   free(a_x);
-   free(a_y);
-   free(masses);
-}
-
-void output_stdout(int n_p, int n_m_p, double * masses, double now, double * p_x, double *p_y, double *a_x, double *a_y) 
-{
-    printf("%f ", now);
-    int i;
-    for(i = 0; i < n_p; i++)
-    {
-        printf("%f %f %f %f ", p_x[i], p_y[i], a_x[i], a_y[i]);
-    }
-    printf("\n");
-}
-
+/*---------------------------------------------------------------------------
+ * Actual entry point to start integration
+ *---------------------------------------------------------------------------*/
+/**
+ * Will call custom initialization function receive number of particles, the
+ * masses of those that are massive, initial values for location
+ * and velocity of all particles. 
+ * Then integrate, using the output function to print out intermediate results,
+ * and clean up.
+ */
 void gravitate(InitFunction init, OutputFunction output, double time_end, double initial_dt, double output_dt)
 {
     dt = initial_dt;
@@ -338,9 +381,7 @@ void gravitate(InitFunction init, OutputFunction output, double time_end, double
     double time_since_output = 0;
     init(&number_particles, &number_mass_particles, &masses,
         &p_x_current, &p_y_current, &v_x_current, &v_y_current); 
-    initialize_adaptive_solver();
-    alloc_helper_arrays();
-    finish_initialization();
+    initialize_solver();
     output(number_particles, number_mass_particles, masses, 
         time_current, p_x_current, p_y_current, a_x, a_y);
     while(time_current < time_end) 
@@ -356,10 +397,11 @@ void gravitate(InitFunction init, OutputFunction output, double time_end, double
         }
         time_current += dt;
     }
-    free_arrays();
+    clean_up();
 }
-
-
+/*---------------------------------------------------------------------------
+ * MAIN - do parameter parsing etc...
+ *---------------------------------------------------------------------------*/
 int main(int argc, char** argv) 
 {
     float time_end = 1000;
