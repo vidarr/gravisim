@@ -15,3 +15,7 @@ all: gravisim
 
 gravisim: gravisim.c
 	$(CC) $(LNFLAGS) $(CFLAGS) $(DEBUG_FLAGS) -o gravisim $^
+
+exponential: exponential.c
+	$(CC) $(LNFLAGS) $(CFLAGS) $(DEBUG_FLAGS) -o exponential $^
+
