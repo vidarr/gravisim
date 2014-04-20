@@ -19,6 +19,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "solver_gauss_legendre_2.h"
 /*---------------------------------------------------------------------------*/
 /* Solving the equations occuring by implicit GAUSS-LEGENDRE integration */
 #include <gsl/gsl_multiroots.h>
@@ -35,19 +36,11 @@ void print_vector(FILE * stream, double time, const gsl_vector * vector)
     }
     fprintf(stream, "\n");
 }
-
 /*---------------------------------------------------------------------------
  * Root solver wrapper
  *---------------------------------------------------------------------------*/
-typedef struct {
-    gsl_multiroot_fsolver  * solver;
-    gsl_multiroot_function * zero_function;
-    double                   max_abs_error;
-    double                   max_rel_error;
-    gsl_vector             * init_values;
-} RootProblem;
 /*---------------------------------------------------------------------------*/
-RootProblem * RootProblem_initialize(
+RootProblem * root_problem_initialize(
         int(* func)(const gsl_vector *, void *, gsl_vector *), void * params,
         gsl_vector * init_values, double max_abs_error, double max_rel_error)
 {
@@ -66,22 +59,22 @@ RootProblem * RootProblem_initialize(
     return problem;
 }
 /*---------------------------------------------------------------------------*/
-void RootProblem_reset (RootProblem * problem) 
+void root_problem_reset (RootProblem * problem) 
 {
     gsl_multiroot_fsolver_set(problem->solver, 
             problem->zero_function, problem->init_values);
 }
 /*---------------------------------------------------------------------------*/
-void RootProblem_free(RootProblem * problem)
+void root_problem_free(RootProblem * problem)
 {
     free(problem->zero_function);
     gsl_multiroot_fsolver_free(problem->solver);
     free(problem);
 }
 /*---------------------------------------------------------------------------*/
-int  RootProblem_solve(RootProblem * problem) 
+int  root_problem_solve(RootProblem * problem) 
 {
-    RootProblem_reset(problem);
+    root_problem_reset(problem);
     int iteration_result = gsl_multiroot_fsolver_iterate (problem->solver);
     if(iteration_result != GSL_SUCCESS)
     {
@@ -106,60 +99,13 @@ int  RootProblem_solve(RootProblem * problem)
     return GSL_SUCCESS;
 }
 /*---------------------------------------------------------------------------*/
-gsl_vector * RootProblem_get_solution(RootProblem * problem)
+gsl_vector * root_problem_get_solution(RootProblem * problem)
 {
     return gsl_multiroot_fsolver_root(problem->solver);
 }
 /*---------------------------------------------------------------------------
  * Here goes the actual gravitational stuff
  *---------------------------------------------------------------------------*/
-/*---------------------------------------------------------------------------
- *
- * All units in 10^3 km, kg and s
- * All masses are given as multiples of 1 base mass, the actual value of 
- * 1 uniform mass is given by the constant BASE_MASS
- * There are two different kind of particles:
- * 1. Particles with neglectible gravitational influence and mass "1"
- * 2. Massive particles with masses > 1, whose gravitational influence on 
- *    other particles is NOT neglectible.
- *---------------------------------------------------------------------------*/
-/**
- * Minimum mass of one particle is 1 metric ton = 10e3 kg
- */
-#define BASE_MASS 10e3
-/**
- * This is the gravitational constant - 6.67384 * 10^(-11) m^3 / kg / s^2 =
- * 6.67384 * 10^(-2) km^3 / kg / s^2
- */
-#define GRAVITATIONAL_CONSTANT (6.67384e-2 / BASE_MASS)
-/**
- * contains the coordinates of all simulated particles - their position AND 
- * velocities.
- * Thus the vector is 4 * number_particles long.
- * coordinates_x[0 ... number_particles - 1] contains the x positions
- * coordinates_x[number_particles ... 2 * number_particles - 1] contains their
- * velocities. 
- *
- * The rest of the vector consists of the y coordinates, again, location and
- * velociy.
- *
- * Particles with masses different from 1 go at the top positions, thus 
- * coordinates[0 ... number_of_massive_particles - 1] massive particles
- * coordinates[number_of_massive_particles ... number_particles] particles 
- *     with neglectible masses
- * The same holds for coordinates_y.
- *
- * Another vector contains the masses of all particles that DO have a mass. 
- * As there are at most as many massive particles as there are particles all
- * in all, this vector must have a maximum size of the vector coords_x.
- */
-/** 
- * Accessing the elements of the coords vector
- */
-#define X(i, total_no)   (i)
-#define Y(i, total_no)   (i + 2 * (total_no))
-#define V_X(i, total_no) (i + (total_no))
-#define V_Y(i, total_no) (i + 3 * (total_no))
 /*---------------------------------------------------------------------------*/
 typedef struct 
 {
@@ -248,14 +194,14 @@ void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **),
     gsl_vector_memcpy(params->old_coords, coords);
     gsl_vector * init_values = gsl_vector_alloc(coords->size);
     gsl_vector_memcpy(init_values, coords);
-    RootProblem * problem = RootProblem_initialize(gravitational_zero_func, params,
+    RootProblem * problem = root_problem_initialize(gravitational_zero_func, params,
         init_values, max_abs_error, max_rel_error);
     double output_time = 0;
     print_vector(stdout,time, params->old_coords);
     while(time < end_time)
     {
-        RootProblem_solve(problem);
-        gsl_vector * k = RootProblem_get_solution(problem);
+        root_problem_solve(problem);
+        gsl_vector * k = root_problem_get_solution(problem);
         /* GAUSS-LEGENDRE : y_new = y_old + h * f(y_old + 1/2 * k) 
          * where k = h * f(y_old + 1/2 * k)
          * thus 
@@ -273,82 +219,6 @@ void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **),
     gsl_vector_free(params->old_coords);
     gsl_vector_free(params->temp);
     gsl_vector_free(init_values);
-    RootProblem_free(problem);
+    root_problem_free(problem);
     free(params);
 }
-/*---------------------------------------------------------------------------*/
-/**
- * Inits vectors to resemble the Earth - Moon system
- */
-void init_earth_moon(gsl_vector ** coord, gsl_vector ** masses)
-{
-    size_t no = 2;
-    *coord = gsl_vector_alloc(4 * no);
-    gsl_vector_set(*coord, X(0, no), 0);
-    gsl_vector_set(*coord, Y(0, no), 0);
-    gsl_vector_set(*coord, V_X(0, no), 0);
-    gsl_vector_set(*coord, V_Y(0, no), 0);
-    gsl_vector_set(*coord, X(1, no), 300);
-    gsl_vector_set(*coord, Y(1, no), 0);
-    gsl_vector_set(*coord, V_X(1, no), 0);
-    gsl_vector_set(*coord, V_Y(1, no), 0.001);
-    *masses = gsl_vector_alloc(1);
-    gsl_vector_set(*masses, 0, 1.0 / 0.0123);
-}
-/**
- * Inits vectors to resemble the Earth - Moon system with add. satellite
- */
-void init_earth_moon_sat(gsl_vector ** coord, gsl_vector ** masses)
-{
-    size_t no = 3;
-    *coord = gsl_vector_alloc(4 * no);
-    gsl_vector_set(*coord, X(0, no), 0);
-    gsl_vector_set(*coord, Y(0, no), 0);
-    gsl_vector_set(*coord, V_X(0, no), 0);
-    gsl_vector_set(*coord, V_Y(0, no), 0);
-    gsl_vector_set(*coord, X(1, no), 300);
-    gsl_vector_set(*coord, Y(1, no), 0);
-    gsl_vector_set(*coord, V_X(1, no), 0);
-    gsl_vector_set(*coord, V_Y(1, no), 0.01);
-    gsl_vector_set(*coord, X(2, no), 0);
-    gsl_vector_set(*coord, Y(2, no), 100);
-    gsl_vector_set(*coord, V_X(2, no), 0.1);
-    gsl_vector_set(*coord, V_Y(2, no), 0);
-    *masses = gsl_vector_alloc(2);
-    gsl_vector_set(*masses, 0, 1000);
-    gsl_vector_set(*masses, 1, 100);
-}
-/*---------------------------------------------------------------------------
- * MAIN - do parameter parsing etc...
- *---------------------------------------------------------------------------*/
-int main(int argc, char** argv) 
-{
-    float time_end = 1000;
-    float dt       = 0.1;
-    float dt_out   = 0.1;
-    double abs_error = 0.000000001;
-    char *opts = " ";
-
-    if(argc > 1) 
-    {
-        sscanf(argv[1], "%f", &time_end);
-    }
-    if(argc > 2) 
-    {
-        sscanf(argv[2], "%f", &dt);
-    }
-    if(argc > 3) 
-    {
-        sscanf(argv[3], "%f", &dt_out);
-    }
-    if(argc > 4) 
-    { 
-        if(argv[4][0] == 'a') 
-        { 
-        } 
-    } 
-    fprintf(stderr, "time %f dt %f dt_out %f\n", time_end, dt, dt_out);
-    integrate_system(init_earth_moon_sat, dt, dt_out, time_end, abs_error, 0.001);
-    return 0;
-}
-
