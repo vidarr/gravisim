@@ -207,11 +207,6 @@ int gravitational_dif_func(const gsl_vector * x, void * params, gsl_vector * f)
             x_force += gsl_vector_get(masses, n) * x_diff / r_2;
             y_force += gsl_vector_get(masses, n) * y_diff / r_2;
         }
-        if(i < num_masses)
-        {
-            x_force *= gsl_vector_get(masses, i);
-            y_force *= gsl_vector_get(masses, i);
-        }
         x_force *= GRAVITATIONAL_CONSTANT;
         y_force *= GRAVITATIONAL_CONSTANT;
         gsl_vector_set(f, V_X(i, num_particles), x_force);
@@ -294,10 +289,34 @@ void init_earth_moon(gsl_vector ** coord, gsl_vector ** masses)
     gsl_vector_set(*coord, V_X(0, no), 0);
     gsl_vector_set(*coord, V_Y(0, no), 0);
     gsl_vector_set(*coord, X(1, no), 300);
+    gsl_vector_set(*coord, Y(1, no), 0);
     gsl_vector_set(*coord, V_X(1, no), 0);
-    gsl_vector_set(*coord, V_Y(1, no), 1);
+    gsl_vector_set(*coord, V_Y(1, no), 0.001);
     *masses = gsl_vector_alloc(1);
     gsl_vector_set(*masses, 0, 1.0 / 0.0123);
+}
+/**
+ * Inits vectors to resemble the Earth - Moon system with add. satellite
+ */
+void init_earth_moon_sat(gsl_vector ** coord, gsl_vector ** masses)
+{
+    size_t no = 3;
+    *coord = gsl_vector_alloc(4 * no);
+    gsl_vector_set(*coord, X(0, no), 0);
+    gsl_vector_set(*coord, Y(0, no), 0);
+    gsl_vector_set(*coord, V_X(0, no), 0);
+    gsl_vector_set(*coord, V_Y(0, no), 0);
+    gsl_vector_set(*coord, X(1, no), 300);
+    gsl_vector_set(*coord, Y(1, no), 0);
+    gsl_vector_set(*coord, V_X(1, no), 0);
+    gsl_vector_set(*coord, V_Y(1, no), 0.01);
+    gsl_vector_set(*coord, X(2, no), 0);
+    gsl_vector_set(*coord, Y(2, no), 100);
+    gsl_vector_set(*coord, V_X(2, no), 0.1);
+    gsl_vector_set(*coord, V_Y(2, no), 0);
+    *masses = gsl_vector_alloc(2);
+    gsl_vector_set(*masses, 0, 1000);
+    gsl_vector_set(*masses, 1, 100);
 }
 /*---------------------------------------------------------------------------
  * MAIN - do parameter parsing etc...
@@ -329,7 +348,7 @@ int main(int argc, char** argv)
         } 
     } 
     fprintf(stderr, "time %f dt %f dt_out %f\n", time_end, dt, dt_out);
-    integrate_system(init_earth_moon, dt, dt_out, time_end, abs_error, 0.001);
+    integrate_system(init_earth_moon_sat, dt, dt_out, time_end, abs_error, 0.001);
     return 0;
 }
 
