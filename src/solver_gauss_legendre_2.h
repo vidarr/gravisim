@@ -56,7 +56,7 @@ gsl_vector * root_problem_get_solution(RootProblem * problem);
  *---------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------
  *
- * All units in 10^3 km, kg and s
+ * All units in m, kg and s
  * All masses are given as multiples of 1 base mass, the actual value of 
  * 1 uniform mass is given by the constant BASE_MASS
  * There are two different kind of particles:
@@ -93,14 +93,10 @@ gsl_vector * root_problem_get_solution(RootProblem * problem);
 #define V_Y(i, total_no) (i + 3 * (total_no))
 /*---------------------------------------------------------------------------*/
 /**
- * Minimum mass of one particle, is 1 metric ton = 10e3 kg
- */
-#define BASE_MASS 10e3
-/**
  * This is the gravitational constant - 6.67384 * 10^(-11) m^3 / kg / s^2 =
- * 6.67384 * 10^(-2) km^3 / kg / s^2
+ * 6.67384 * 10^(-20) km^3 /kg / s^2 
  */
-#define GRAVITATIONAL_CONSTANT (6.67384e-2 / BASE_MASS)
+#define GRAVITATIONAL_CONSTANT (6.67384e-11)
 /*---------------------------------------------------------------------------*/
 /**
  * Function to integrate a scenario

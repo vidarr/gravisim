@@ -131,7 +131,7 @@ int gravitational_dif_func(const gsl_vector * x, void * params, gsl_vector * f)
     size_t i, n;
     double x_val, y_val, x_diff, y_diff;
     double x_force, y_force;
-    double r_2;
+    double r_invers, r_2;
     for(i = 0; i < num_particles; i++)
     {
         x_val = gsl_vector_get(x, V_X(i, num_particles));
@@ -150,6 +150,9 @@ int gravitational_dif_func(const gsl_vector * x, void * params, gsl_vector * f)
             x_diff -= x_val;
             y_diff -= y_val;
             r_2 = x_diff * x_diff + y_diff * y_diff;
+            r_invers = 1.0 / sqrt(r_2);
+            x_diff *= r_invers;
+            y_diff *= r_invers;
             x_force += gsl_vector_get(masses, n) * x_diff / r_2;
             y_force += gsl_vector_get(masses, n) * y_diff / r_2;
         }
