@@ -219,6 +219,8 @@ void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **),
             output_time = 0;
         }
     }
+    gsl_vector_free(coords);
+    gsl_vector_free(params->masses);
     gsl_vector_free(params->old_coords);
     gsl_vector_free(params->temp);
     gsl_vector_free(init_values);
