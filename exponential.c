@@ -55,11 +55,11 @@ int exponential_zero_function(const gsl_vector * x, void * params, gsl_vector * 
 {
     struct exponential_params *exp_params = (struct exponential_params *) params;
     exponential(params, f, x);
-   fprintf(stderr, "exponential_zero_function: f : ");
-   gsl_vector_fprintf(stderr, f, "%f");
+    fprintf(stderr, "exponential_zero_function: f : ");
+    gsl_vector_fprintf(stderr, f, "%f");
     gsl_vector_sub(f, x);
-   fprintf(stderr, "exponential_zero_function: f : ");
-   gsl_vector_fprintf(stderr, f, "%f");
+    fprintf(stderr, "exponential_zero_function: f : ");
+    gsl_vector_fprintf(stderr, f, "%f");
     return GSL_SUCCESS;
 }
 /*---------------------------------------------------------------------------*/

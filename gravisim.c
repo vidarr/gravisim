@@ -22,382 +22,282 @@
 /*---------------------------------------------------------------------------*/
 /* Solving the equations occuring by implicit GAUSS-LEGENDRE integration */
 #include <gsl/gsl_multiroots.h>
-gsl_multiroot_fsolver *multiRootSolver;
-/*---------------------------------------------------------------------------*/
-/* All masses in 10^6 kg */
-/* All distances in 10^6 m */
-#define GRAVITATIONAL_CONSTANT_ORIGIN ((double)6.0e2)
-#define GRAVITATIONAL_CONSTANT ((double)(GRAVITATIONAL_CONSTANT_ORIGIN))
-/*---------------------------------------------------------------------------*/
-int      number_particles;
-int      number_mass_particles;
-double   * masses;
-double dt;
-double dt_min, dt_max;
-/* Should never exceeded */
-double v_max;
-/* previous states */
-double * p_x_prev;
-double * p_y_prev;
-/* temporarily store new v */
-double * p_x_temp;
-double * p_y_temp;
-/* to store result */
-double * p_x_current;
-double * p_y_current;
-double * v_x_current;
-double * v_y_current;
-/* acceleration */
-double * a_x;
-double * a_y;
-/*---------------------------------------------------------------------------*/
-void (* next)(void);
 /*---------------------------------------------------------------------------
- * Helpers 
+ * HELPER
  *---------------------------------------------------------------------------*/
-void print_array(char * name, int n, double * array) 
-{
-    fprintf(stderr, "%s ", name);
-    int i;
-    for(i = 0; i < n; i++)
-    {
-        fprintf(stderr, "%f;", array[i]);
-    }
-    fprintf(stderr, "\n");
-}
-/*---------------------------------------------------------------------------*/
-void exchange(double **a, double **b) 
-{
-    double *temp = *a;
-    *a = *b;
-    *b = temp;
-}
-/*---------------------------------------------------------------------------*/
-double dabs(double a)
-{
-    if(a < 0.0) return -a;
-    return a;
-}
-/*---------------------------------------------------------------------------*/
-void recalculate_v() 
+void print_vector(FILE * stream, double time, const gsl_vector * vector)
 {
     int i;
-    double dt_invers = 1.0 / dt;
-    for( i = 0; i < number_particles; i++)
+    fprintf(stream, "%f ", time);
+    for(i = 0; i < vector->size; i++)
     {
-        v_x_current[i]  = p_x_current[i] - p_x_prev[i];
-        v_y_current[i]  = p_y_current[i] - p_y_prev[i];
-        v_x_current[i] *= dt_invers;
-        v_y_current[i] *= dt_invers;
+        fprintf(stream, "%f ", gsl_vector_get(vector, i));
     }
+    fprintf(stream, "\n");
 }
-/*---------------------------------------------------------------------------
- * Function typedefs
- *---------------------------------------------------------------------------*/
-typedef void(* InitFunction)(int * no_particles, int * no_mass_particles, double ** masses,
-        double ** p_x, double ** p_y, double ** v_x, double ** v_y) ;
-typedef void(* OutputFunction)(int no_particles, int no_mass_particles, double * masses,
-        double time_current, double * p_x, double * p_y, double *a_x, double *a_y) ;
-/*---------------------------------------------------------------------------*/
-/**
- * Initialize an velocity vector thus that the particle will circle the central
- * body at (0,0) in a circle
- */
-void calculate_satelite_orbital_v(double central_mass, double x, double y, double *v_x, double *v_y) 
-{
-    double r_2 = x * x + y * y;
-    double r   = sqrt(r_2);
-    double v   = sqrt(central_mass * GRAVITATIONAL_CONSTANT / r);
-    if (x == 0) 
-    {
-        *v_x = v; *v_y = 0;
-        return;
-    }
-    if (y == 0) 
-    {
-        *v_y = v; *v_x = 0;
-        return;
-    }
-    *v_x =    v   * y / r;
-    *v_y = - *v_x * x / y;
-}
-/*---------------------------------------------------------------------------*/
-/**
- * Custom init method that takes care to initialize the number of masses, 
- * the location and velocity vectors of these masses etc.
- */
-void initialize(int * no_particles, int * no_mass_particles, double ** masses,
-        double ** p_x, double ** p_y, double ** v_x, double ** v_y) 
-{
-#define CENTRAL_MASS 1e12
-#define MEDIUM_MASS  1e7
-#define X_0 0.0
-#define Y_0 0.0
-#define D_X_0 300000.0
-#define D_Y_0 D_X_0
-#define V_X_0 0.0
-#define V_Y_0 0.0    
-    int n_p   = *no_particles      =  10; 
-    int n_m_p = *no_mass_particles =  1; 
-    *masses = (double *)malloc(n_m_p * sizeof(double));
-    int n;
-    for(n = 0; n < n_m_p; n++) 
-    {
-        (*masses)[n] = 100.0;
 
-    }
-    *p_x = (double *)malloc(4 * n_p * sizeof(double));
-    *p_y = *p_x + n_p;
-    *v_x = *p_y + n_p;
-    *v_y = *v_x + n_p;
-    (*p_x)[1] = 0;
-    (*p_y)[1] = 300000.0;
-    (*v_x)[1] = 1000;
-    (*v_y)[1] = .0;
-    /* calculate_satelite_orbital_v(CENTRAL_MASS, (*p_x)[1], (*p_y)[1], &(*v_x)[1], &(*v_y)[1]);  */
-    /*fprintf(stderr, "x: %f y: %f v_x : %f v_y: %f\n", (*p_x)[1], (*p_y)[1], (*v_x)[1], (*v_y)[1]); */
-     for(n = 0; n < n_p; n++)  
-     { 
-         double dx = (double) D_X_0 * random() / (double) RAND_MAX; 
-         double dy = (double) D_Y_0 * random() / (double) RAND_MAX; 
-         dx -= D_X_0 * 0.5; 
-         dy -= D_X_0 * 0.5; 
-         (*p_x)[n] = X_0 + dx; 
-         (*p_y)[n] = Y_0 + dy; 
-         (*v_x)[n] = V_X_0; 
-         (*v_y)[n] = V_Y_0; 
-         calculate_satelite_orbital_v(CENTRAL_MASS, (*p_x)[n], (*p_y)[n], &((*v_x)[n]), &((*v_y)[n]));
-     } 
-    /* First mass is central mass */
-    (*masses)[0] = CENTRAL_MASS;
-    (*p_x)[0]    = 0;
-    (*p_y)[0]    = 0;
-    (*v_x)[0]    = 0;
-    (*v_y)[0]    = 0;
-#undef X_0
-#undef Y_0
-#undef D_X_0
-#undef D_Y_0 
-#undef V_X_0
-#undef V_Y_0
+/*---------------------------------------------------------------------------
+ * Root solver wrapper
+ *---------------------------------------------------------------------------*/
+typedef struct {
+    gsl_multiroot_fsolver  * solver;
+    gsl_multiroot_function * zero_function;
+    double                   max_abs_error;
+    double                   max_rel_error;
+    gsl_vector             * init_values;
+} RootProblem;
+/*---------------------------------------------------------------------------*/
+RootProblem * RootProblem_initialize(
+        int(* func)(const gsl_vector *, void *, gsl_vector *), void * params,
+        gsl_vector * init_values, double max_abs_error, double max_rel_error)
+{
+    size_t dimensions = init_values->size;
+    RootProblem * problem = (RootProblem *)malloc(sizeof(RootProblem));
+    problem->solver = 
+        gsl_multiroot_fsolver_alloc(gsl_multiroot_fsolver_hybrid, dimensions);
+    problem->zero_function = 
+        (gsl_multiroot_function *)malloc(sizeof(gsl_multiroot_function));
+    problem->zero_function->f      = func;
+    problem->zero_function->params = params;
+    problem->zero_function->n      = dimensions;
+    problem->init_values           = init_values;
+    problem->max_abs_error         = max_abs_error;
+    problem->max_rel_error         = max_rel_error;
+    return problem;
 }
+/*---------------------------------------------------------------------------*/
+void RootProblem_reset (RootProblem * problem) 
+{
+    gsl_multiroot_fsolver_set(problem->solver, 
+            problem->zero_function, problem->init_values);
+}
+/*---------------------------------------------------------------------------*/
+void RootProblem_free(RootProblem * problem)
+{
+    free(problem->zero_function);
+    gsl_multiroot_fsolver_free(problem->solver);
+    free(problem);
+}
+/*---------------------------------------------------------------------------*/
+int  RootProblem_solve(RootProblem * problem) 
+{
+    RootProblem_reset(problem);
+    int iteration_result = gsl_multiroot_fsolver_iterate (problem->solver);
+    if(iteration_result != GSL_SUCCESS)
+    {
+        return iteration_result;
+    }
+    int test_residual_result = gsl_multiroot_test_residual(
+            gsl_multiroot_fsolver_f(problem->solver), problem->max_abs_error);
+    while(test_residual_result == GSL_CONTINUE)
+    {
+        iteration_result = gsl_multiroot_fsolver_iterate (problem->solver);
+        if(iteration_result != GSL_SUCCESS)
+        {
+            return iteration_result;
+        }
+    test_residual_result = gsl_multiroot_test_residual(
+            gsl_multiroot_fsolver_f(problem->solver), problem->max_abs_error);
+    }
+    if(test_residual_result != GSL_SUCCESS)
+    {
+        return test_residual_result;
+    }
+    return GSL_SUCCESS;
+}
+/*---------------------------------------------------------------------------*/
+gsl_vector * RootProblem_get_solution(RootProblem * problem)
+{
+    return gsl_multiroot_fsolver_root(problem->solver);
+}
+/*---------------------------------------------------------------------------
+ * Here goes the actual gravitational stuff
+ *---------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------
+ *
+ * All units in 10^3 km, kg and s
+ * All masses are given as multiples of 1 base mass, the actual value of 
+ * 1 uniform mass is given by the constant BASE_MASS
+ * There are two different kind of particles:
+ * 1. Particles with neglectible gravitational influence and mass "1"
+ * 2. Massive particles with masses > 1, whose gravitational influence on 
+ *    other particles is NOT neglectible.
+ *---------------------------------------------------------------------------*/
+/**
+ * Minimum mass of one particle is 1 metric ton = 10e3 kg
+ */
+#define BASE_MASS 10e3
+/**
+ * This is the gravitational constant - 6.67384 * 10^(-11) m^3 / kg / s^2 =
+ * 6.67384 * 10^(-2) km^3 / kg / s^2
+ */
+#define GRAVITATIONAL_CONSTANT (6.67384e-2 / BASE_MASS)
+/**
+ * contains the coordinates of all simulated particles - their position AND 
+ * velocities.
+ * Thus the vector is 4 * number_particles long.
+ * coordinates_x[0 ... number_particles - 1] contains the x positions
+ * coordinates_x[number_particles ... 2 * number_particles - 1] contains their
+ * velocities. 
+ *
+ * The rest of the vector consists of the y coordinates, again, location and
+ * velociy.
+ *
+ * Particles with masses different from 1 go at the top positions, thus 
+ * coordinates[0 ... number_of_massive_particles - 1] massive particles
+ * coordinates[number_of_massive_particles ... number_particles] particles 
+ *     with neglectible masses
+ * The same holds for coordinates_y.
+ *
+ * Another vector contains the masses of all particles that DO have a mass. 
+ * As there are at most as many massive particles as there are particles all
+ * in all, this vector must have a maximum size of the vector coords_x.
+ */
+/** 
+ * Accessing the elements of the coords vector
+ */
+#define X(i, total_no)   (i)
+#define Y(i, total_no)   (i + 2 * (total_no))
+#define V_X(i, total_no) (i + (total_no))
+#define V_Y(i, total_no) (i + 3 * (total_no))
+/*---------------------------------------------------------------------------*/
+typedef struct 
+{
+    gsl_vector * masses;
+    gsl_vector * old_coords;
+    gsl_vector * temp;
+    double       dt;
+} GravitationalParams;
 /*---------------------------------------------------------------------------*/
 /** 
- * Custom output function that will print out the current time as well as,
- * successively for each particle, its location and acceleration vector
+ * This is the right-hand side of the diff equation of motion within 
+ * a gravitational field.
+ * As the diff equations for both x and y coordinates are de-coupled, this
+ * function can be applied separately to coords_x and coords_y.
  */
-void output_stdout(int n_p, int n_m_p, double * masses, double now, 
-        double * p_x, double *p_y, double *a_x, double *a_y) 
-{
-    printf("%f ", now);
-    int i;
-    for(i = 0; i < n_p; i++)
-    {
-        printf("%f %f %f %f ", p_x[i], p_y[i], a_x[i], a_y[i]);
-    }
-    printf("\n");
-}
-/*---------------------------------------------------------------------------
- * General initialization methods
- *---------------------------------------------------------------------------*/
-void alloc_helper_arrays() 
+int gravitational_dif_func(const gsl_vector * x, void * params, gsl_vector * f)
 {
 
-    p_x_prev = (double *)malloc(2 * number_particles * sizeof(double));
-    p_y_prev = p_x_prev + number_particles;
-    p_x_temp = (double *)malloc(2 * number_particles * sizeof(double));
-    p_y_temp = p_x_temp + number_particles;
-    a_x      = (double *)malloc(2 * number_particles * sizeof(double));
-    a_y      = a_x + number_particles;
-}
-/*---------------------------------------------------------------------------*/
-void initialize_adaptive_solver()
-{
-    int i;
-    double v_max = 0;
-    for(i = 0; i < number_particles; i++) 
+    GravitationalParams * grav_params = (GravitationalParams *)params;
+    gsl_vector * masses  = grav_params->masses;
+    size_t num_masses    = masses->size;
+    size_t num_particles = x->size / 4;
+    size_t i, n;
+    double x_val, y_val, x_diff, y_diff;
+    double x_force, y_force;
+    double r_2;
+    for(i = 0; i < num_particles; i++)
     {
-        if(v_max < dabs(v_x_current[i])) 
-        {
-            v_max = dabs(v_x_current[i]);
-        }
-        if(v_max < dabs(v_y_current[i])) 
-        {
-            v_max = dabs(v_y_current[i]);
-        }
-    }
-    dt_min = 0.000001 * dt;
-    dt_max = 100.0 * dt;
-    if(dt_max > 1.0)
-    {
-        dt_max = 0.99;
-    }
-    fprintf(stderr, "v_max : %f  dt_min: %.10f  dt_max: %.10f\n", v_max, dt_min, dt_max);
-}
-/*---------------------------------------------------------------------------*/
-void finish_initialization() 
-{
-    exchange(&p_x_prev, &p_x_current);
-    exchange(&p_y_prev, &p_y_current);
-    int n;
-    /* Approximate current location by
-     * x_n+1 = x_n + dx / dt * Dt */
-    for(n = 0; n < number_particles; n++) 
-    {
-         p_x_current[n] = p_x_prev[n] + dt * v_x_current[n];
-         p_y_current[n] = p_y_prev[n] + dt * v_y_current[n]; 
-    }
-}
-/*---------------------------------------------------------------------------*/
-void initialize_solver() 
-{
-    initialize_adaptive_solver();
-    multiRootSolver = gsl_multiroot_fsolver_alloc(gsl_multiroot_fsolver_hybrid, 3 * number_particles);
-    alloc_helper_arrays();
-    finish_initialization();
-}
-/*---------------------------------------------------------------------------
- * Clean up functions 
- *---------------------------------------------------------------------------*/
-void free_arrays()
-{
-   free(p_x_current); 
-   free(p_x_prev); 
-   free(p_x_temp); 
-   free(a_x);
-   free(masses);
-}
-/*---------------------------------------------------------------------------*/
-void clean_up()
-{
-    gsl_multiroot_fsolver_free(multiRootSolver);
-    free_arrays();
-}
-/*---------------------------------------------------------------------------*/
-/**
- * Function to recalculate the acceleration of all particles 
- */
-void recalculate_acceleration() 
-{
-    int n;
-    for(n = 0; n < number_particles; n++)
-    {
-        a_x[n] = a_y[n] = 0.0;
-        int i;
-        for(i = 0; i < number_mass_particles; i++) 
+        x_val = gsl_vector_get(x, V_X(i, num_particles));
+        y_val = gsl_vector_get(x, V_Y(i, num_particles));
+        gsl_vector_set(f, X(i, num_particles), x_val); 
+        gsl_vector_set(f, Y(i, num_particles), y_val); 
+        x_val = gsl_vector_get(x, X(i, num_particles));
+        y_val = gsl_vector_get(x, Y(i, num_particles));
+        x_force = 0; 
+        y_force = 0;
+        for(n = 0; n < num_masses; n++)
         {
             if(n == i) continue;
-            double r_x = p_x_current[i] - p_x_current[n];
-            double r_y = p_y_current[i] - p_y_current[n];
-            double r_2 = r_x * r_x + r_y * r_y;
-            double r_inverted = 1.0 / sqrt(r_2);
-            double a_abs = GRAVITATIONAL_CONSTANT * masses[i] / r_2;
-            a_x[n] += a_abs * r_x * r_inverted;
-            a_y[n] += a_abs * r_y * r_inverted;
+            x_diff = gsl_vector_get(x, X(n, num_particles));
+            y_diff = gsl_vector_get(x, Y(n, num_particles));
+            x_diff -= x_val;
+            y_diff -= y_val;
+            r_2 = x_diff * x_diff + y_diff * y_diff;
+            x_force += gsl_vector_get(masses, n) * x_diff / r_2;
+            y_force += gsl_vector_get(masses, n) * y_diff / r_2;
         }
+        if(i < num_masses)
+        {
+            x_force *= gsl_vector_get(masses, i);
+            y_force *= gsl_vector_get(masses, i);
+        }
+        x_force *= GRAVITATIONAL_CONSTANT;
+        y_force *= GRAVITATIONAL_CONSTANT;
+        gsl_vector_set(f, V_X(i, num_particles), x_force);
+        gsl_vector_set(f, V_Y(i, num_particles), y_force);
     }
-}
-/*---------------------------------------------------------------------------
- * Static stepper
- *---------------------------------------------------------------------------*/
-void static_next() 
-{
-    recalculate_acceleration();
-    double dt_square_half =0.5f * dt * dt;
-    int n;
-    for(n = 0; n < number_particles; n++)
-    {
-        /* effectively: 
-         * x_1 = x_0 + Dt * dx / dt + Dt * Dt * a */
-        /* Only valid if Dt does not change */
-        p_x_temp[n] = 2.0 * p_x_current[n] - p_x_prev[n] + dt_square_half * a_x[n];
-        p_y_temp[n] = 2.0 * p_y_current[n] - p_y_prev[n] + dt_square_half * a_y[n];
-    }
-    exchange(&p_x_prev, &p_x_current);
-    exchange(&p_y_prev, &p_y_current);
-    exchange(&p_x_temp, &p_x_current);
-    exchange(&p_y_temp, &p_y_current);
-}
-/*---------------------------------------------------------------------------
- * Adaptive stepper
- *---------------------------------------------------------------------------*/
-void adapt_dt() 
-{
-    int    n          = 0;
-    double a_max      = 0.0;
-    double a_max_temp = 0.0;
-    double dt_temp    = 0.0;
-    for(n = 0; n < number_particles; n++)
-    {
-        a_max_temp = dabs(a_x[n]);
-        if(a_max_temp > a_max) a_max = a_max_temp;
-        a_max_temp = dabs(a_y[n]);
-        if(a_max_temp > a_max) a_max = a_max_temp;
-    }
-    if(a_max == 0.0) 
-    {
-        dt = dt_max;
-        return;
-    }
-    dt_temp = v_max / a_max;
-    if(dt_temp < dt_min) dt_temp = dt_min;
-    if(dt_temp > dt_max) dt_max  = dt_max;
-    dt = dt_temp;
+    return GSL_SUCCESS;
 }
 /*---------------------------------------------------------------------------*/
-void adaptive_next() 
-{
-    recalculate_acceleration();
-    adapt_dt();
-    double dt_square_half =0.5f * dt * dt;
-    int n;
-    for(n = 0; n < number_particles; n++)
-    {
-        /* p_x_current[n] = p_x_current[n] +  dt * v_x_current[n] + dt_square_half * a_x[n];
-           p_y_current[n] = p_y_current[n] +  dt * v_y_current[n] + dt_square_half * a_y[n]; */
-        p_x_temp[n] = 2.0 * p_x_current[n] - p_x_prev[n] + dt_square_half * a_x[n];
-        p_y_temp[n] = 2.0 * p_y_current[n] - p_y_prev[n] + dt_square_half * a_y[n];
-    }
-    exchange(&p_x_prev, &p_x_current);
-    exchange(&p_y_prev, &p_y_current);
-    exchange(&p_x_temp, &p_x_current);
-    exchange(&p_y_temp, &p_y_current);
-    /* recalculate_v();*/
-}
-/*---------------------------------------------------------------------------
- * Actual entry point to start integration
- *---------------------------------------------------------------------------*/
 /**
- * Will call custom initialization function receive number of particles, the
- * masses of those that are massive, initial values for location
- * and velocity of all particles. 
- * Then integrate, using the output function to print out intermediate results,
- * and clean up.
+ * This is the equation we have to find the roots for. 
+ * GAUSS-LEGENDRE defines the k vector to be
+ *    k = h * f(old_y + 1/2 * k) 
  */
-void gravitate(InitFunction init, OutputFunction output, double time_end, double initial_dt, double output_dt)
+int gravitational_zero_func(const gsl_vector * x, void * params, gsl_vector * f)
 {
-    dt = initial_dt;
-    double time_current = 0;
-    double time_since_output = 0;
-    init(&number_particles, &number_mass_particles, &masses,
-        &p_x_current, &p_y_current, &v_x_current, &v_y_current); 
-    initialize_solver();
-    output(number_particles, number_mass_particles, masses, 
-        time_current, p_x_current, p_y_current, a_x, a_y);
-    while(time_current < time_end) 
+    /* x is the vector of Runge-Kutta k's ! */
+    GravitationalParams * grav_params = (GravitationalParams *) params;
+    gsl_vector_memcpy(grav_params->temp, x);
+    gsl_vector_scale(grav_params->temp, 0.5);
+    gsl_vector_add(grav_params->temp, grav_params->old_coords);
+    gravitational_dif_func(grav_params->temp, params, f);
+    gsl_vector_scale(f, grav_params->dt);
+    gsl_vector_sub(f, x);
+    return GSL_SUCCESS;
+}
+/*---------------------------------------------------------------------------*/
+void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **), 
+        double dt, double dt_out, double end_time, 
+        double max_abs_error, double max_rel_error)
+{
+    double time = 0;
+    GravitationalParams * params = 
+        (GravitationalParams *)malloc(sizeof(GravitationalParams));
+    params->dt = dt;
+    gsl_vector * coords;
+    init_func(&coords, &(params->masses));
+    params->old_coords = gsl_vector_alloc(coords->size);
+    params->temp       = gsl_vector_alloc(coords->size);
+    gsl_vector_memcpy(params->old_coords, coords);
+    gsl_vector * init_values = gsl_vector_alloc(coords->size);
+    gsl_vector_memcpy(init_values, coords);
+    RootProblem * problem = RootProblem_initialize(gravitational_zero_func, params,
+        init_values, max_abs_error, max_rel_error);
+    double output_time = 0;
+    print_vector(stdout,time, params->old_coords);
+    while(time < end_time)
     {
-        next();
-        time_since_output += dt;
-        if(time_since_output >= output_dt) 
+        RootProblem_solve(problem);
+        gsl_vector * k = RootProblem_get_solution(problem);
+        /* GAUSS-LEGENDRE : y_new = y_old + h * f(y_old + 1/2 * k) 
+         * where k = h * f(y_old + 1/2 * k)
+         * thus 
+         * y_new = y_old + k                                       */
+        gsl_vector_add(params->old_coords, k);
+        time += dt;
+        output_time += dt;
+        if(output_time > dt_out)
         {
-            fprintf(stderr, "time: %.15f    dt: %.15f\n", time_current, dt);
-            output(number_particles, number_mass_particles, masses, 
-                time_current, p_x_current, p_y_current, a_x, a_y);
-            time_since_output = 0;
+            fprintf(stderr, "%f \n", time);
+            print_vector(stdout,time, params->old_coords);
+            output_time = 0;
         }
-        time_current += dt;
     }
-    clean_up();
+    gsl_vector_free(params->old_coords);
+    gsl_vector_free(params->temp);
+    gsl_vector_free(init_values);
+    RootProblem_free(problem);
+    free(params);
+}
+/*---------------------------------------------------------------------------*/
+/**
+ * Inits vectors to resemble the Earth - Moon system
+ */
+void init_earth_moon(gsl_vector ** coord, gsl_vector ** masses)
+{
+    size_t no = 2;
+    *coord = gsl_vector_alloc(4 * no);
+    gsl_vector_set(*coord, X(0, no), 0);
+    gsl_vector_set(*coord, Y(0, no), 0);
+    gsl_vector_set(*coord, V_X(0, no), 0);
+    gsl_vector_set(*coord, V_Y(0, no), 0);
+    gsl_vector_set(*coord, X(1, no), 300);
+    gsl_vector_set(*coord, V_X(1, no), 0);
+    gsl_vector_set(*coord, V_Y(1, no), 1);
+    *masses = gsl_vector_alloc(1);
+    gsl_vector_set(*masses, 0, 1.0 / 0.0123);
 }
 /*---------------------------------------------------------------------------
  * MAIN - do parameter parsing etc...
@@ -407,8 +307,8 @@ int main(int argc, char** argv)
     float time_end = 1000;
     float dt       = 0.1;
     float dt_out   = 0.1;
+    double abs_error = 0.000000001;
     char *opts = " ";
-    next = static_next;
 
     if(argc > 1) 
     {
@@ -426,12 +326,10 @@ int main(int argc, char** argv)
     { 
         if(argv[4][0] == 'a') 
         { 
-            next = adaptive_next; 
         } 
     } 
     fprintf(stderr, "time %f dt %f dt_out %f\n", time_end, dt, dt_out);
-    fprintf(stderr, "argc %i time %s dt %s dt_out %s\n", argc,  argv[1], argv[2], argv[3]);
-    gravitate(initialize, output_stdout, time_end, dt, dt_out);
+    integrate_system(init_earth_moon, dt, dt_out, time_end, abs_error, 0.001);
     return 0;
 }
 
