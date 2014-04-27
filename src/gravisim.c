@@ -16,6 +16,12 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "solver_gauss_legendre_2.h"
+/*---------------------------------------------------------------------------*/
+#define MASS_SUN            (1.989 * 10e33)
+#define MASS_EARTH          (5.974 * 10e27)
+#define MASS_MOON           (7.349 * 10e25)
+#define DISTANCE_SUN_EARTH  (149.6 * 10e6)
+#define DISTANCE_EARTH_MOON (0.384 * 10e6)
 /*---------------------------------------------------------------------------
  * HELPERS
  *---------------------------------------------------------------------------*/
@@ -188,6 +194,36 @@ void init_earth_sat_moon_orbit(gsl_vector ** coord, gsl_vector ** masses)
     gsl_vector_set(*coord, V_X(no_satellites - 1, no_satellites), v_x_sat);
     gsl_vector_set(*coord, V_Y(no_satellites - 1, no_satellites), v_y_sat);
 }
+/**
+ * Create Sun - Earth - Moon system
+ */
+void init_sun_earth_moon(gsl_vector ** coord, gsl_vector ** masses)
+{
+    *masses = gsl_vector_alloc(3);
+    *coord  = gsl_vector_alloc(3 * 4);
+    double v_x, v_y_moon, v_y_earth;
+    double omega; 
+    int body, index;
+    for(body = 0; body < 3; body++)
+    {
+        for(index = 0; index < 4; index++)
+        {
+            gsl_vector_set(*coord, body + index, 0.0);
+        }
+    }
+    gsl_vector_set(*masses, 0, MASS_SUN);
+    gsl_vector_set(*masses, 1, MASS_EARTH);
+    gsl_vector_set(*masses, 2, MASS_MOON);
+    gsl_vector_set(*coord, X(1, 3), DISTANCE_SUN_EARTH) ;
+    gsl_vector_set(*coord, X(2, 3), DISTANCE_SUN_EARTH + DISTANCE_EARTH_MOON);
+    calculate_satellite_orbital_v(MASS_SUN, DISTANCE_SUN_EARTH, 0.0, &v_x, &v_y_earth);
+    gsl_vector_set(*coord, V_X(1, 3), v_x);
+    gsl_vector_set(*coord, V_Y(1, 3), v_y_earth);
+    omega = v_y_earth / gsl_vector_get(*coord, X(1, 3));
+    calculate_satellite_orbital_v(MASS_EARTH, DISTANCE_EARTH_MOON, 0.0, &v_x, &v_y_moon);
+    gsl_vector_set(*coord, V_X(2, 3), v_x);
+    gsl_vector_set(*coord, V_Y(2, 3), omega * gsl_vector_get(*coord, X(2, 3)) + v_y_moon);
+}
 /*---------------------------------------------------------------------------
  * MAIN - do parameter parsing etc...
  *---------------------------------------------------------------------------*/
@@ -218,7 +254,7 @@ int main(int argc, char** argv)
         } 
     } 
     printf("# time %f dt %f dt_out %f abs_error %f\n", time_end, dt, dt_out, abs_error);
-    integrate_system(init_earth_sat_moon_orbit, dt, dt_out, time_end, abs_error, 0.001);
+    integrate_system(init_sun_earth_moon, dt, dt_out, time_end, abs_error, 0.001);
     return 0;
 }
 

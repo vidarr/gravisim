@@ -5,11 +5,11 @@
 
 =head1 NAME
 
-   orbit_10.plt
+   orbit_10.sh
 
 =head1 SYNOPSIS
 
-    orbit_10.plt DATA_FILE OUTPUT_FILE TIME_END [TITLE]
+   orbit_10.sh DATA_FILE OUTPUT_FILE TIME_END [TITLE]
 
 =cut
 

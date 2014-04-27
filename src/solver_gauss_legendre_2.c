@@ -192,6 +192,11 @@ void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **),
     params->dt = dt;
     gsl_vector * coords;
     init_func(&coords, &(params->masses));
+    size_t no_particles = coords->size / 4;
+    printf("# NO_PARTICLES = %i X(0) = %i   Y(0) = %i   V_X(0) = %i   V_Y(0) = %i\n", 
+            no_particles, 
+            X(0, no_particles), Y(0, no_particles), 
+            V_X(0, no_particles), V_Y(0, no_particles)); 
     params->old_coords = gsl_vector_alloc(coords->size);
     params->temp       = gsl_vector_alloc(coords->size);
     gsl_vector_memcpy(params->old_coords, coords);
