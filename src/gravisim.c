@@ -17,11 +17,11 @@
  */
 #include "solver_gauss_legendre_2.h"
 /*---------------------------------------------------------------------------*/
-#define MASS_SUN            (1.989 * 10e33)
-#define MASS_EARTH          (5.974 * 10e27)
-#define MASS_MOON           (7.349 * 10e25)
-#define DISTANCE_SUN_EARTH  (149.6 * 10e6)
-#define DISTANCE_EARTH_MOON (0.384 * 10e6)
+#define MASS_SUN            (1.989e33)
+#define MASS_EARTH          (5.974e27)
+#define MASS_MOON           (7.349e25)
+#define DISTANCE_SUN_EARTH  (149.6e6)
+#define DISTANCE_EARTH_MOON (0.384e6)
 /*---------------------------------------------------------------------------
  * HELPERS
  *---------------------------------------------------------------------------*/
