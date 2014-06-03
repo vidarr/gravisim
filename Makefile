@@ -2,6 +2,7 @@ CC=gcc
 CFLAGS=-g -Wstrict-prototypes -ansi
 LNFLAGS= -lm
 LNFLAGS+=-lgsl -lgslcblas
+SDL_LNFLAGS+=`sdl-config --cflags --libs`
 
 SRC_DIR=src
 BIN_DIR=bin
@@ -22,6 +23,12 @@ $(BIN_DIR)/solver_gauss_legendre_2.o: $(SRC_DIR)/solver_gauss_legendre_2.c $(SRC
 
 $(BIN_DIR)/gravisim: $(BIN_DIR) $(BIN_DIR)/gravisim.o $(BIN_DIR)/solver_gauss_legendre_2.o $(SRC_DIR)/solver_gauss_legendre_2.h
 	$(CC) $(LNFLAGS) $(CFLAGS) $(DEBUG_FLAGS) -o $@ $(BIN_DIR)/gravisim.o $(BIN_DIR)/solver_gauss_legendre_2.o
+
+$(BIN_DIR)/viewer.o: $(SRC_DIR)/viewer.c
+	$(CC) $(CLFAGS) $(DEBUG_FLAGS) -c $(SRC_DIR)/viewer.c -o $@
+
+$(BIN_DIR)/viewer: $(BIN_DIR) $(BIN_DIR)/viewer.o
+	$(CC) $(LNFLAGS) $(SDL_LNFLAGS) -o $@ $(BIN_DIR)/viewer.o
 
 $(TEST_DIR)/exponential: $(TEST_DIR)/exponential.c
 	$(CC) $(LNFLAGS) $(CFLAGS) $(DEBUG_FLAGS) -o $@ $(TEST_DIR)/exponential.c
