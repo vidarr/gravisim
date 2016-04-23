@@ -1,0 +1,5 @@
+set t png size 6000,6000
+set o "25_planets_inner.png"
+set title "25_planets_inner"
+plot '../radii/25.csv' u 1:2,'../radii/25.csv' u 1:3,'../radii/25.csv' u 1:4,'../radii/25.csv' u 1:5,'../radii/25.csv' u 1:6,'../radii/25.csv' u 1:7,'../radii/25.csv' u 1:8,'../radii/25.csv' u 1:11  w l,'../radii/25.csv' u 1:12  w l,'../radii/25.csv' u 1:13  w l,'../radii/25.csv' u 1:14  w l,'../radii/25.csv' u 1:15  w l,'../radii/25.csv' u 1:16  w l,'../radii/25.csv' u 1:17  w l,'../radii/25.csv' u 1:18  w l,'../radii/25.csv' u 1:19  w l,'../radii/25.csv' u 1:20  w l,'../radii/25.csv' u 1:21  w l,'../radii/25.csv' u 1:22  w l,'../radii/25.csv' u 1:23  w l,'../radii/25.csv' u 1:24  w l,'../radii/25.csv' u 1:25  w l,'../radii/25.csv' u 1:26  w l,'../radii/25.csv' u 1:27  w l,'../radii/25.csv' u 1:28  w l,'../radii/25.csv' u 1:29  w l,'../radii/25.csv' u 1:30  w l,'../radii/25.csv' u 1:31  w l,'../radii/25.csv' u 1:32  w l,'../radii/25.csv' u 1:33  w l,'../radii/25.csv' u 1:34  w l,'../radii/25.csv' u 1:35  w l,'../radii/25.csv' u 1:36 w l
+exit

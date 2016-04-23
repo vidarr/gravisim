@@ -35,9 +35,8 @@ while (<>) {
     my $x = $parts[1 + $steady_particle_index] + 0.0;
     my $y = $parts[2 * $no_particles + 1 + $steady_particle_index] + 0.0;
     @new_parts = ($parts[0]);
-    push @new_parts, map {$_ - $x} @parts[1..2 * $no_particles];
-    push @new_parts, map {$_ - $y} @parts[2 * $no_particles + 1..3 * $no_particles];
-    push @new_parts, @parts[2 * $no_particles + 1 .. $#parts];
+    push @new_parts, map {$_ - $x} @parts[1 .. 2 * $no_particles];
+    push @new_parts, map {$_ - $y} @parts[2 * $no_particles + 1 .. 4 * $no_particles];
     print join ' ', @new_parts;
     print "\n";
 }
