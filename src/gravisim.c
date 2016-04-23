@@ -17,33 +17,57 @@
  */
 #include "solver_gauss_legendre_2.h"
 /*---------------------------------------------------------------------------*/
+/* MASSES in g */
 #define MASS_SUN            (1.989e33)
+#define MASS_MERCURY        (0.330e27)
+#define MASS_VENUS          (4.87e27)
 #define MASS_EARTH          (5.974e27)
 #define MASS_MOON           (7.349e25)
+#define MASS_MARS           (0.642e27)
+#define MASS_JUPITER        (1898e27)
+#define MASS_SATURN         (568e27)
+#define MASS_URANUS         (86.8e27)
+#define MASS_NEPTUN         (102e27)
+/* DISTANCES in km */
+#define DISTANCE_SUN_MERCURY (57.9e6)
+#define DISTANCE_SUN_VENUS   (108.2e6)
 #define DISTANCE_SUN_EARTH  (149.6e6)
+#define DISTANCE_SUN_MARS   (227.9e6)
+#define DISTANCE_SUN_JUPITER (778.6e6)
+#define DISTANCE_SUN_SATURN  (1433.5e6)
+#define DISTANCE_SUN_URANUS  (2872.5e6)
+#define DISTANCE_SUN_NEPTUN  (4495.1e6)
 #define DISTANCE_EARTH_MOON (0.384e6)
 /*---------------------------------------------------------------------------
  * HELPERS
  *---------------------------------------------------------------------------*/
 /**
- * Initialise velocity vector in a way that the particle would orbit in a 
+ * Return -1 if s < 0, 0 if s == 0, 1 if s > 0
+ */
+double sign(double s)
+{
+    if(0 == s) return 0;
+    return s / abs(s);
+}
+/**
+ * Initialise velocity vector in a way that the particle would orbit in a
  * plain circle around a central mass placed at (0,0)
  */
 void calculate_satellite_orbital_v(double central_mass,
         double x, double y,
-        double *v_x, double *v_y) 
+        double *v_x, double *v_y)
 {
     double r_2 = x * x + y * y;
     double r   = sqrt(r_2);
     double v   = sqrt(central_mass * GRAVITATIONAL_CONSTANT / r);
-    if (x == 0) 
+    if (x == 0)
     {
-        *v_x = v; *v_y = 0;
+        *v_x = sign(y) * v; *v_y = 0;
         return;
     }
-    if (y == 0) 
+    if (y == 0)
     {
-        *v_y = v; *v_x = 0;
+        *v_y = sign(x) * v; *v_x = 0;
         return;
     }
     *v_x =    v   * y / r;
@@ -94,7 +118,7 @@ void init_earth_moon_sat(gsl_vector ** coord, gsl_vector ** masses)
     gsl_vector_set(*masses, 1, 100);
 }
 /**
- * Inits vectors to resemble the Earth - Moon system with add. satellite 
+ * Inits vectors to resemble the Earth - Moon system with add. satellite
  * Initialises velocities such that both satellites orbit around the central
  * mass
  */
@@ -129,8 +153,6 @@ void init_earth_moon_sat_orbit(gsl_vector ** coord, gsl_vector ** masses)
 void init_earth_sat_orbit(gsl_vector ** coord, gsl_vector ** masses)
 {
     size_t no = 10;
-    printf("# x(0) in col %u, y(0) in col %u, v_x(0) in col %u, v_y(0) in col %u\n", 
-            X(0, no), Y(0, no), V_X(0, no), V_Y(0, no));
     double x, y, v_x, v_y;
     /* masses */
     *masses = gsl_vector_alloc(1);
@@ -147,7 +169,7 @@ void init_earth_sat_orbit(gsl_vector ** coord, gsl_vector ** masses)
         double dist = (10000 + no_satellite * 300);
         gsl_vector_set(*coord, X(no_satellite, no), dist);
         gsl_vector_set(*coord, Y(no_satellite, no), 0);
-        calculate_satellite_orbital_v(gsl_vector_get(*masses, 0), 
+        calculate_satellite_orbital_v(gsl_vector_get(*masses, 0),
                 dist, 0, &v_x, &v_y);
         gsl_vector_set(*coord, V_X(no_satellite, no), v_x);
         gsl_vector_set(*coord, V_Y(no_satellite, no), v_y);
@@ -178,8 +200,8 @@ void init_earth_sat_moon_orbit(gsl_vector ** coord, gsl_vector ** masses)
     calculate_satellite_orbital_v(central_mass, x, y, &v_x, &v_y);
     gsl_vector_set(*coord, V_X(no_satellites - 1, no_satellites), v_x);
     gsl_vector_set(*coord, V_Y(no_satellites - 1, no_satellites), v_y);
-    /* at last, we need to swap the new massive moon into position 1 of 
-     * the coord array such that the index of the moon is the same for 
+    /* at last, we need to swap the new massive moon into position 1 of
+     * the coord array such that the index of the moon is the same for
      * both the mass and coord array                                    */
     double x_sat   = gsl_vector_get(*coord, X(1, no_satellites));
     double y_sat   = gsl_vector_get(*coord, Y(1, no_satellites));
@@ -202,7 +224,7 @@ void init_sun_earth_moon(gsl_vector ** coord, gsl_vector ** masses)
     *masses = gsl_vector_alloc(3);
     *coord  = gsl_vector_alloc(3 * 4);
     double v_x, v_y_moon, v_y_earth;
-    double omega; 
+    double omega;
     int body, index;
     for(body = 0; body < 3; body++)
     {
@@ -224,10 +246,91 @@ void init_sun_earth_moon(gsl_vector ** coord, gsl_vector ** masses)
     gsl_vector_set(*coord, V_X(2, 3), v_x);
     gsl_vector_set(*coord, V_Y(2, 3), omega * gsl_vector_get(*coord, X(2, 3)) + v_y_moon);
 }
+/**
+ * Create Sun and all 'planets' along with test masses
+ */
+void init_solar_system(gsl_vector ** coord, gsl_vector ** masses)
+{
+    size_t no_satellites = 50;
+    size_t no_bodies = 1 + 8 + no_satellites;
+    *masses = gsl_vector_alloc(no_bodies - no_satellites);
+    *coord  = gsl_vector_alloc((no_bodies) * 4);
+    double v_x, v_y;
+    int body, index;
+    for(body = 0; body < no_bodies; body++)
+    {
+        for(index = 0; index < 4; index++)
+        {
+            gsl_vector_set(*coord, body * 4 + index, 0.0);
+        }
+    }
+    gsl_vector_set(*masses, 0, MASS_SUN);
+    gsl_vector_set(*masses, 1, MASS_MERCURY);
+    gsl_vector_set(*masses, 2, MASS_VENUS);
+    gsl_vector_set(*masses, 3, MASS_EARTH);
+    gsl_vector_set(*masses, 4, MASS_MARS);
+    gsl_vector_set(*masses, 5, MASS_JUPITER);
+    gsl_vector_set(*masses, 6, MASS_SATURN);
+    gsl_vector_set(*masses, 7, MASS_URANUS);
+    gsl_vector_set(*masses, 8, MASS_NEPTUN);
+    gsl_vector_set(*coord, X(1, no_bodies),  DISTANCE_SUN_MERCURY) ;
+    gsl_vector_set(*coord, X(2, no_bodies), -DISTANCE_SUN_VENUS);
+    gsl_vector_set(*coord, X(3, no_bodies),  DISTANCE_SUN_EARTH);
+    gsl_vector_set(*coord, X(4, no_bodies), -DISTANCE_SUN_MARS);
+    gsl_vector_set(*coord, X(5, no_bodies),  DISTANCE_SUN_JUPITER);
+    gsl_vector_set(*coord, X(6, no_bodies), -DISTANCE_SUN_SATURN);
+    gsl_vector_set(*coord, X(7, no_bodies),  DISTANCE_SUN_URANUS);
+    gsl_vector_set(*coord, X(8, no_bodies), -DISTANCE_SUN_NEPTUN);
+    calculate_satellite_orbital_v(MASS_SUN,  DISTANCE_SUN_MERCURY,
+        0.0, &v_x, &v_y);
+    gsl_vector_set(*coord, V_X(1, no_bodies), v_x);
+    gsl_vector_set(*coord, V_Y(1, no_bodies), v_y);
+    calculate_satellite_orbital_v(MASS_SUN,  DISTANCE_SUN_VENUS,
+        0.0, &v_x, &v_y);
+    gsl_vector_set(*coord, V_X(2, no_bodies), v_x);
+    gsl_vector_set(*coord, V_Y(2, no_bodies), v_y);
+    calculate_satellite_orbital_v(MASS_SUN,  DISTANCE_SUN_EARTH,
+        0.0, &v_x, &v_y);
+    gsl_vector_set(*coord, V_X(3, no_bodies), v_x);
+    gsl_vector_set(*coord, V_Y(3, no_bodies), v_y);
+    calculate_satellite_orbital_v(MASS_SUN,  DISTANCE_SUN_MARS,
+        0.0, &v_x, &v_y);
+    gsl_vector_set(*coord, V_X(4, no_bodies), v_x);
+    gsl_vector_set(*coord, V_Y(4, no_bodies), v_y);
+    calculate_satellite_orbital_v(MASS_SUN,  DISTANCE_SUN_JUPITER,
+        0.0, &v_x, &v_y);
+    gsl_vector_set(*coord, V_X(5, no_bodies), v_x);
+    gsl_vector_set(*coord, V_Y(5, no_bodies), v_y);
+    calculate_satellite_orbital_v(MASS_SUN,  DISTANCE_SUN_SATURN,
+        0.0, &v_x, &v_y);
+    gsl_vector_set(*coord, V_X(6, no_bodies), v_x);
+    gsl_vector_set(*coord, V_Y(6, no_bodies), v_y);
+    calculate_satellite_orbital_v(MASS_SUN,  DISTANCE_SUN_URANUS,
+        0.0, &v_x, &v_y);
+    gsl_vector_set(*coord, V_X(7, no_bodies), v_x);
+    gsl_vector_set(*coord, V_Y(7, no_bodies), v_y);
+    calculate_satellite_orbital_v(MASS_SUN,  DISTANCE_SUN_NEPTUN,
+        0.0, &v_x, &v_y);
+    gsl_vector_set(*coord, V_X(8, no_bodies), v_x);
+    gsl_vector_set(*coord, V_Y(8, no_bodies), v_y);
+    /* Now init 'test' satellites */
+    double dist_increment = DISTANCE_SUN_NEPTUN / (no_satellites + 1.0f);
+    double dist = 0.0;
+    for(index = 0; index < no_satellites; index++)
+    {
+        dist = dist_increment * (1 + index);
+        gsl_vector_set(*coord, X(9 + index, no_bodies), 0.0);
+        gsl_vector_set(*coord, Y(9 + index, no_bodies), dist);
+        calculate_satellite_orbital_v(gsl_vector_get(*masses, 0),
+                0.0, dist, &v_x, &v_y);
+        gsl_vector_set(*coord, V_X(9 + index, no_bodies), v_x);
+        gsl_vector_set(*coord, V_Y(9 + index, no_bodies), v_y);
+    }
+}
 /*---------------------------------------------------------------------------
  * MAIN - do parameter parsing etc...
  *---------------------------------------------------------------------------*/
-int main(int argc, char** argv) 
+int main(int argc, char** argv)
 {
     float time_end = 1000;
     float dt       = 0.1;
@@ -235,26 +338,27 @@ int main(int argc, char** argv)
     double abs_error = 0.000000001;
     char *opts = " ";
 
-    if(argc > 1) 
+    if(argc > 1)
     {
         sscanf(argv[1], "%f", &time_end);
     }
-    if(argc > 2) 
+    if(argc > 2)
     {
         sscanf(argv[2], "%f", &dt);
     }
-    if(argc > 3) 
+    if(argc > 3)
     {
         sscanf(argv[3], "%f", &dt_out);
     }
-    if(argc > 4) 
-    { 
-        if(argv[4][0] == 'a') 
-        { 
-        } 
-    } 
-    printf("# time %f dt %f dt_out %f abs_error %f\n", time_end, dt, dt_out, abs_error);
-    integrate_system(init_sun_earth_moon, dt, dt_out, time_end, abs_error, 0.001);
+    if(argc > 4)
+    {
+        if(argv[4][0] == 'a')
+        {
+        }
+    }
+    printf("# time %f dt %f dt_out %f abs_error %f\n",
+           time_end, dt, dt_out, abs_error);
+    integrate_system(init_solar_system, dt, dt_out, time_end, abs_error, 0.001);
     return 0;
 }
 

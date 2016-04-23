@@ -11,7 +11,7 @@ normalize.pl [STEADY_PARTICLE_INDEX]
 C<normalize.pl> reades a coordinate vector from stdin.
 It will transform all coordinates in a way such that
 one of the position of one particle will appear fixed,
-i.e. its coordinates be (0, 0). 
+i.e. its coordinates be (0, 0).
 The particle which will be fixed to a constant position
 is chosen by STEADY_PARTICLE_INDEX.
 If STEADY_PARTICLE_INDEX is not given, the first particle

@@ -39,16 +39,15 @@ void print_vector(FILE * stream, double time, const gsl_vector * vector)
 /*---------------------------------------------------------------------------
  * Root solver wrapper
  *---------------------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
 RootProblem * root_problem_initialize(
         int(* func)(const gsl_vector *, void *, gsl_vector *), void * params,
         gsl_vector * init_values, double max_abs_error, double max_rel_error)
 {
     size_t dimensions = init_values->size;
     RootProblem * problem = (RootProblem *)malloc(sizeof(RootProblem));
-    problem->solver = 
+    problem->solver =
         gsl_multiroot_fsolver_alloc(gsl_multiroot_fsolver_hybrid, dimensions);
-    problem->zero_function = 
+    problem->zero_function =
         (gsl_multiroot_function *)malloc(sizeof(gsl_multiroot_function));
     problem->zero_function->f      = func;
     problem->zero_function->params = params;
@@ -59,9 +58,9 @@ RootProblem * root_problem_initialize(
     return problem;
 }
 /*---------------------------------------------------------------------------*/
-void root_problem_reset (RootProblem * problem) 
+void root_problem_reset (RootProblem * problem)
 {
-    gsl_multiroot_fsolver_set(problem->solver, 
+    gsl_multiroot_fsolver_set(problem->solver,
             problem->zero_function, problem->init_values);
 }
 /*---------------------------------------------------------------------------*/
@@ -72,7 +71,7 @@ void root_problem_free(RootProblem * problem)
     free(problem);
 }
 /*---------------------------------------------------------------------------*/
-int  root_problem_solve(RootProblem * problem) 
+int  root_problem_solve(RootProblem * problem)
 {
     root_problem_reset(problem);
     int iteration_result = gsl_multiroot_fsolver_iterate (problem->solver);
@@ -107,7 +106,7 @@ gsl_vector * root_problem_get_solution(RootProblem * problem)
  * Here goes the actual gravitational stuff
  *---------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------*/
-typedef struct 
+typedef struct
 {
     gsl_vector * masses;
     gsl_vector * old_coords;
@@ -115,8 +114,8 @@ typedef struct
     double       dt;
 } GravitationalParams;
 /*---------------------------------------------------------------------------*/
-/** 
- * This is the right-hand side of the diff equation of motion within 
+/**
+ * This is the right-hand side of the diff equation of motion within
  * a gravitational field.
  * As the diff equations for both x and y coordinates are de-coupled, this
  * function can be applied separately to coords_x and coords_y.
@@ -136,11 +135,11 @@ int gravitational_dif_func(const gsl_vector * x, void * params, gsl_vector * f)
     {
         x_val = gsl_vector_get(x, V_X(i, num_particles));
         y_val = gsl_vector_get(x, V_Y(i, num_particles));
-        gsl_vector_set(f, X(i, num_particles), x_val); 
-        gsl_vector_set(f, Y(i, num_particles), y_val); 
+        gsl_vector_set(f, X(i, num_particles), x_val);
+        gsl_vector_set(f, Y(i, num_particles), y_val);
         x_val = gsl_vector_get(x, X(i, num_particles));
         y_val = gsl_vector_get(x, Y(i, num_particles));
-        x_force = 0; 
+        x_force = 0;
         y_force = 0;
         for(n = 0; n < num_masses; n++)
         {
@@ -165,9 +164,9 @@ int gravitational_dif_func(const gsl_vector * x, void * params, gsl_vector * f)
 }
 /*---------------------------------------------------------------------------*/
 /**
- * This is the equation we have to find the roots for. 
+ * This is the equation we have to find the roots for.
  * GAUSS-LEGENDRE defines the k vector to be
- *    k = h * f(old_y + 1/2 * k) 
+ *    k = h * f(old_y + 1/2 * k)
  */
 int gravitational_zero_func(const gsl_vector * x, void * params, gsl_vector * f)
 {
@@ -182,27 +181,29 @@ int gravitational_zero_func(const gsl_vector * x, void * params, gsl_vector * f)
     return GSL_SUCCESS;
 }
 /*---------------------------------------------------------------------------*/
-void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **), 
-        double dt, double dt_out, double end_time, 
+void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **),
+        double dt, double dt_out, double end_time,
         double max_abs_error, double max_rel_error)
 {
     double time = 0;
-    GravitationalParams * params = 
+    GravitationalParams * params =
         (GravitationalParams *)malloc(sizeof(GravitationalParams));
     params->dt = dt;
     gsl_vector * coords;
     init_func(&coords, &(params->masses));
     size_t no_particles = coords->size / 4;
-    printf("# NO_PARTICLES = %i X(0) = %i   Y(0) = %i   V_X(0) = %i   V_Y(0) = %i\n", 
-            no_particles, 
-            X(0, no_particles), Y(0, no_particles), 
-            V_X(0, no_particles), V_Y(0, no_particles)); 
+    printf("# NO_PARTICLES = %i X(0) = %i   Y(0) = %i   "
+           "V_X(0) = %i   V_Y(0) = %i\n",
+            no_particles,
+            X(0, no_particles), Y(0, no_particles),
+            V_X(0, no_particles), V_Y(0, no_particles));
     params->old_coords = gsl_vector_alloc(coords->size);
     params->temp       = gsl_vector_alloc(coords->size);
     gsl_vector_memcpy(params->old_coords, coords);
     gsl_vector * init_values = gsl_vector_alloc(coords->size);
     gsl_vector_memcpy(init_values, coords);
-    RootProblem * problem = root_problem_initialize(gravitational_zero_func, params,
+    RootProblem * problem =
+        root_problem_initialize(gravitational_zero_func, params,
         init_values, max_abs_error, max_rel_error);
     double output_time = 0;
     print_vector(stdout,time, params->old_coords);
@@ -210,9 +211,9 @@ void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **),
     {
         root_problem_solve(problem);
         gsl_vector * k = root_problem_get_solution(problem);
-        /* GAUSS-LEGENDRE : y_new = y_old + h * f(y_old + 1/2 * k) 
+        /* GAUSS-LEGENDRE : y_new = y_old + h * f(y_old + 1/2 * k)
          * where k = h * f(y_old + 1/2 * k)
-         * thus 
+         * thus
          * y_new = y_old + k                                       */
         gsl_vector_add(params->old_coords, k);
         time += dt;
