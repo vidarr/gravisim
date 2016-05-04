@@ -98,7 +98,7 @@ int  root_problem_solve(RootProblem * problem)
     return GSL_SUCCESS;
 }
 /*---------------------------------------------------------------------------*/
-gsl_vector * root_problem_get_solution(RootProblem * problem)
+gsl_vector* root_problem_get_solution(RootProblem * problem)
 {
     return gsl_multiroot_fsolver_root(problem->solver);
 }
@@ -112,6 +112,9 @@ typedef struct
     gsl_vector * old_coords;
     gsl_vector * temp;
     double       dt;
+    double       dt_min;
+    double       dt_max;
+    double       f_max;
 } GravitationalParams;
 /*---------------------------------------------------------------------------*/
 /**
@@ -120,7 +123,7 @@ typedef struct
  * As the diff equations for both x and y coordinates are de-coupled, this
  * function can be applied separately to coords_x and coords_y.
  */
-int gravitational_dif_func(const gsl_vector * x, void * params, gsl_vector * f)
+int gravitational_dif_func(const gsl_vector* x, void* params, gsl_vector* f)
 {
 
     GravitationalParams * grav_params = (GravitationalParams *)params;
@@ -170,25 +173,42 @@ int gravitational_dif_func(const gsl_vector * x, void * params, gsl_vector * f)
  */
 int gravitational_zero_func(const gsl_vector * x, void * params, gsl_vector * f)
 {
+    double f_max = 0.0;
+    double dt_new = 0.0;
     /* x is the vector of Runge-Kutta k's ! */
     GravitationalParams * grav_params = (GravitationalParams *) params;
     gsl_vector_memcpy(grav_params->temp, x);
     gsl_vector_scale(grav_params->temp, 0.5);
     gsl_vector_add(grav_params->temp, grav_params->old_coords);
     gravitational_dif_func(grav_params->temp, params, f);
+    f_max = gsl_vector_max(f);
+    if(0.0 == f_max) exit(1);
+    grav_params->dt = grav_params->f_max / f_max;
+    if(grav_params->dt > grav_params->dt_max)
+    {
+        grav_params->dt = grav_params->dt_max;
+    }
+    else if(grav_params->dt < grav_params->dt_min)
+    {
+        grav_params->dt = grav_params->dt_min;
+    }
     gsl_vector_scale(f, grav_params->dt);
     gsl_vector_sub(f, x);
     return GSL_SUCCESS;
 }
 /*---------------------------------------------------------------------------*/
 void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **),
-        double dt, double dt_out, double end_time,
+        double dt_min, double dt_max, double dt_out, double end_time,
+        double f_max_newton,
         double max_abs_error, double max_rel_error)
 {
     double time = 0;
     GravitationalParams * params =
         (GravitationalParams *)malloc(sizeof(GravitationalParams));
-    params->dt = dt;
+    params->dt = dt_max;
+    params->dt_min = dt_min;
+    params->dt_max = dt_max;
+    params->f_max  = f_max_newton;
     gsl_vector * coords;
     init_func(&coords, &(params->masses));
     size_t no_particles = coords->size / 4;
@@ -210,17 +230,17 @@ void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **),
     while(time < end_time)
     {
         root_problem_solve(problem);
-        gsl_vector * k = root_problem_get_solution(problem);
+        gsl_vector* k = root_problem_get_solution(problem);
         /* GAUSS-LEGENDRE : y_new = y_old + h * f(y_old + 1/2 * k)
          * where k = h * f(y_old + 1/2 * k)
          * thus
          * y_new = y_old + k                                       */
         gsl_vector_add(params->old_coords, k);
-        time += dt;
-        output_time += dt;
+        time += params->dt;
+        output_time += params->dt;
         if(output_time > dt_out)
         {
-            fprintf(stderr, "%f \n", time);
+            fprintf(stderr, "%lf   %lf\n", time, params->dt);
             print_vector(stdout,time, params->old_coords);
             output_time = 0;
         }

@@ -57,34 +57,34 @@ gsl_vector * root_problem_get_solution(RootProblem * problem);
 /*---------------------------------------------------------------------------
  *
  * All units in m, kg and s
- * All masses are given as multiples of 1 base mass, the actual value of 
+ * All masses are given as multiples of 1 base mass, the actual value of
  * 1 uniform mass is given by the constant BASE_MASS
  * There are two different kind of particles:
  * 1. Particles with neglectible gravitational influence and mass "1"
- * 2. Massive particles with masses > 1, whose gravitational influence on 
+ * 2. Massive particles with masses > 1, whose gravitational influence on
  *    other particles is NOT neglectible.
  *
- * Each state vector contains the coordinates of all simulated particles - 
+ * Each state vector contains the coordinates of all simulated particles -
  * their position AND velocities.
  * Thus the vector is 4 * number_particles long.
  * coordinates_x[0 ... number_particles - 1] contains the x positions
  * coordinates_x[number_particles ... 2 * number_particles - 1] contains their
- * velocities. 
+ * velocities.
  *
  * The rest of the vector consists of the y coordinates, again, location and
  * velociy.
  *
- * Particles with masses different from 1 go at the top positions, thus 
+ * Particles with masses different from 1 go at the top positions, thus
  * coordinates[0 ... number_of_massive_particles - 1] massive particles
- * coordinates[number_of_massive_particles ... number_particles] particles 
+ * coordinates[number_of_massive_particles ... number_particles] particles
  *     with neglectible masses
  * The same holds for coordinates_y.
  *
- * Another vector contains the masses of all particles that DO have a mass. 
+ * Another vector contains the masses of all particles that DO have a mass.
  * As there are at most as many massive particles as there are particles all
  * in all, this vector must have a maximum size of the vector coords_x.
  */
-/** 
+/**
  * Accessing the elements of the coords vector
  */
 #define X(i, total_no)   (i)
@@ -94,15 +94,16 @@ gsl_vector * root_problem_get_solution(RootProblem * problem);
 /*---------------------------------------------------------------------------*/
 /**
  * This is the gravitational constant - 6.67384 * 10^(-11) m^3 / kg / s^2 =
- * 6.67384 * 10^(-20) km^3 /kg / s^2 
+ * 6.67384 * 10^(-20) km^3 /kg / s^2
  */
 #define GRAVITATIONAL_CONSTANT (6.67384e-11)
 /*---------------------------------------------------------------------------*/
 /**
  * Function to integrate a scenario
  */
-void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **), 
-        double dt, double dt_out, double end_time, 
+void integrate_system(void (* init_func)(gsl_vector **, gsl_vector **),
+        double dt_min,double dt_max, double dt_out, double end_time,
+        double f_max_newton,
         double max_abs_error, double max_rel_error);
 /*---------------------------------------------------------------------------*/
 #endif

@@ -15,6 +15,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <assert.h>
 #include "solver_gauss_legendre_2.h"
 /*---------------------------------------------------------------------------*/
 /* MASSES in g */
@@ -333,32 +334,96 @@ void init_solar_system(gsl_vector ** coord, gsl_vector ** masses)
 int main(int argc, char** argv)
 {
     float time_end = 1000;
-    float dt       = 0.1;
+    float dt_min  = 0.1;
+    float dt_max  = 0.1;
     float dt_out   = 0.1;
+    double f_max = 1e5;
     double abs_error = 0.000000001;
     char *opts = " ";
+    int i;
+    enum { NONE, DT, DT_MIN, DT_MAX, DT_OUT, T_END, F_MAX } arg_expected = NONE;
 
-    if(argc > 1)
+    for(i = 0; i < argc; i++)
     {
-        sscanf(argv[1], "%f", &time_end);
-    }
-    if(argc > 2)
-    {
-        sscanf(argv[2], "%f", &dt);
-    }
-    if(argc > 3)
-    {
-        sscanf(argv[3], "%f", &dt_out);
-    }
-    if(argc > 4)
-    {
-        if(argv[4][0] == 'a')
+        switch(arg_expected)
         {
-        }
+            case NONE:
+                if('d' == argv[i][0])
+                {
+                    if(0 != argv[i][1])
+                    {
+                        if('i' == argv[i][1])
+                        {
+                            arg_expected = DT_MIN;
+                        }
+                        else if('a' == argv[i][1])
+                        {
+                            arg_expected = DT_MAX;
+                        }
+                        else if('t' == argv[i][1])
+                        {
+                            arg_expected = DT;
+                        }
+                        else if('o' == argv[i][1])
+                        {
+                            arg_expected = DT_OUT;
+                        }
+                    }
+                }
+                else if('t' == argv[i][0])
+                {
+                    arg_expected = T_END;
+                }
+                else if('f' == argv[i][0])
+                {
+                    arg_expected = F_MAX;
+                }
+                break;
+            case DT:
+                sscanf(argv[i], "%f", &dt_min);
+                dt_max = dt_min;
+                arg_expected = NONE;
+                break;
+            case DT_MIN:
+                sscanf(argv[i], "%f", &dt_min);
+                if(dt_max < dt_min)
+                {
+                    dt_max = dt_min;
+                }
+                arg_expected = NONE;
+                break;
+            case DT_MAX:
+                sscanf(argv[i], "%f", &dt_max);
+                if(dt_max < dt_min)
+                {
+                    dt_min = dt_max;
+                }
+                arg_expected = NONE;
+                break;
+            case DT_OUT:
+                sscanf(argv[i], "%f", &dt_out);
+                arg_expected = NONE;
+                break;
+            case T_END:
+                sscanf(argv[i], "%f", &time_end);
+                arg_expected = NONE;
+                break;
+            case F_MAX:
+                sscanf(argv[i], "%f", &time_end);
+                arg_expected = NONE;
+                break;
+            default:
+                assert(! "THIS SHOULD NEVER EVER HAPPEN");
+        };
     }
-    printf("# time %f dt %f dt_out %f abs_error %f\n",
-           time_end, dt, dt_out, abs_error);
-    integrate_system(init_solar_system, dt, dt_out, time_end, abs_error, 0.001);
+    if(dt_out < dt_max)
+    {
+        dt_out = dt_max;
+    }
+    printf("# time %f dt_min %f dt_max %f   f_max %f   dt_out %f abs_error %f\n",
+           time_end, dt_min, dt_max, f_max, dt_out, abs_error);
+    integrate_system(init_solar_system, dt_min, dt_max, dt_out, time_end,
+            f_max,
+            abs_error, 0.001);
     return 0;
 }
-
