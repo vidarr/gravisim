@@ -18,6 +18,16 @@
 #include <assert.h>
 #include "solver_gauss_legendre_2.h"
 /*---------------------------------------------------------------------------*/
+#define USAGE "\nUSAGE\n"   \
+     "\n\n"        \
+     "   ./gravisim [di|da|do|t|fm  VALUE] ...\n" \
+     "\n"  \
+     " Where 'di' indicates the minimum dt to calculate with\n"  \
+     "       'da' indicates the maximum dt to calculate with\n"  \
+     "       'fm' indicates the maximum power momentum to calculate with\n"   \
+     "       't'  indicates the time to calculate up to\n"       \
+     "       'do' indicates the dt to write a line after\n"
+/*---------------------------------------------------------------------------*/
 /* MASSES in g */
 #define MASS_SUN            (1.989e33)
 #define MASS_MERCURY        (0.330e27)
@@ -342,6 +352,12 @@ int main(int argc, char** argv)
     char *opts = " ";
     int i;
     enum { NONE, DT, DT_MIN, DT_MAX, DT_OUT, T_END, F_MAX } arg_expected = NONE;
+
+    if(1 == argc)
+    {
+        fprintf(stderr, USAGE);
+        exit(1);
+    }
 
     for(i = 0; i < argc; i++)
     {
