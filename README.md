@@ -11,6 +11,10 @@ masses distributed in between the planets up to an arbitray amount of time.
 
 ## Compile
 
+In order to compile, you will need the
+[GNU Scientific Library](https://www.gnu.org/software/gsl/ "GNU Scientific Library")
+headers and libraries installed.
+
 Compilation is done via  
 `cd gravisim && make`
 
